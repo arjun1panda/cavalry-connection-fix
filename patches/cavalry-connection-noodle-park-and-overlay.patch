@@ -92,7 +92,7 @@ index 924990e..f106c2d 100644
  #include "wine/opengl_driver.h"
  #include "wine/server.h"
  #include "wine/debug.h"
-@@ -2606,6 +2610,232 @@ BOOL WINAPI NtUserSetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alph
+@@ -2606,6 +2610,236 @@ BOOL WINAPI NtUserSetLayeredWindowAttributes( HWND hwnd, COLORREF key, BYTE alph
      return ret;
  }
  
@@ -121,16 +121,35 @@ index 924990e..f106c2d 100644
 +
 +static struct cavalry_noodle_drag cavalry_noodle;
 +
-+/* Cavalry attribute-connection rubber-band: Qt663QWindowIcon popup, no caption,
++/* Qt names classes Qt<major><minor><patch>[d]QWindow<suffixes>, and the version
++ * digits change whenever Cavalry bumps Qt (Qt663, Qt692, ...). Only the plain
++ * Icon class is wanted: OwnDC is Qt's OpenGL top-level class. */
++static BOOL is_qt_window_icon_class( HWND hwnd )
++{
++    static const WCHAR suffixW[] = {'Q','W','i','n','d','o','w','I','c','o','n',0};
++    UNICODE_STRING name;
++    WCHAR buf[32];
++    INT len, i = 2;
++
++    name.Buffer = buf;
++    name.MaximumLength = sizeof(buf);
++    name.Length = 0;
++    len = NtUserGetClassName( hwnd, FALSE, &name );
++    if (len < 2 || buf[0] != 'Q' || buf[1] != 't') return FALSE;
++    while (i < len && buf[i] >= '0' && buf[i] <= '9') i++;
++    if (i == 2) return FALSE;
++    if (i < len && buf[i] == 'd') i++;
++    if (len - i != ARRAY_SIZE(suffixW) - 1) return FALSE;
++    return !memcmp( buf + i, suffixW, (ARRAY_SIZE(suffixW) - 1) * sizeof(WCHAR) );
++}
++
++/* Cavalry attribute-connection rubber-band: Qt<version>QWindowIcon popup, no caption,
 + * UpdateLayeredWindow. Must not win Qt topLevelWindows() geometry hits under
 + * the cursor — park Win32 rect off-screen; stroke is drawn on a global overlay. */
 +static BOOL is_cavalry_connection_noodle( HWND hwnd, const struct window_rects *rects )
 +{
-+    static const WCHAR qt_iconW[] = {'Q','t','6','6','3','Q','W','i','n','d','o','w','I','c','o','n',0};
 +    DWORD style;
-+    UNICODE_STRING name;
-+    WCHAR buf[32];
-+    INT len, width, height;
++    INT width, height;
 +    BOOL active_drag;
 +
 +    if (!hwnd || !rects) return FALSE;
@@ -147,13 +166,7 @@ index 924990e..f106c2d 100644
 +    active_drag = cavalry_noodle.have_anchor && cavalry_noodle.hwnd == hwnd;
 +    if (!active_drag && (width > 1600 || height > 1600)) return FALSE;
 +
-+    name.Buffer = buf;
-+    name.MaximumLength = sizeof(buf);
-+    name.Length = 0;
-+    len = NtUserGetClassName( hwnd, FALSE, &name );
-+    if (len < 16) return FALSE;
-+    if (memcmp( buf, qt_iconW, 16 * sizeof(WCHAR) )) return FALSE;
-+    return TRUE;
++    return is_qt_window_icon_class( hwnd );
 +}
 +
 +/* Copy 32bpp pixels including alpha. GDI BitBlt/StretchBlt/AlphaBlend cannot be
@@ -278,16 +291,13 @@ index 924990e..f106c2d 100644
 +    cavalry_noodle.hwnd = 0;
 +}
 +
-+/* Cavalry Ctrl+drag connection viewport: Qt663QWindowIcon ~358×123, CAPTION, no
++/* Cavalry Ctrl+drag connection viewport: Qt<version>QWindowIcon ~358×123, CAPTION, no
 + * thickframe. Same size as the quit/save dialog from Ctrl+Q, so also require an
 + * active mouse capture on a *different* window (true during connection drag). */
 +BOOL is_cavalry_connection_picker( HWND hwnd )
 +{
-+    static const WCHAR qt_iconW[] = {'Q','t','6','6','3','Q','W','i','n','d','o','w','I','c','o','n',0};
 +    DWORD style, ex;
-+    UNICODE_STRING name;
-+    WCHAR buf[32];
-+    INT len, width, height;
++    INT width, height;
 +    RECT rect;
 +    HWND capture;
 +
@@ -306,13 +316,7 @@ index 924990e..f106c2d 100644
 +    height = rect.bottom - rect.top;
 +    if (width < 300 || width > 420 || height < 90 || height > 160) return FALSE;
 +
-+    name.Buffer = buf;
-+    name.MaximumLength = sizeof(buf);
-+    name.Length = 0;
-+    len = NtUserGetClassName( hwnd, FALSE, &name );
-+    if (len < 16) return FALSE;
-+    if (memcmp( buf, qt_iconW, 16 * sizeof(WCHAR) )) return FALSE;
-+    return TRUE;
++    return is_qt_window_icon_class( hwnd );
 +}
 +
 +void make_cavalry_connection_picker_clickthrough( HWND hwnd )
@@ -325,7 +329,7 @@ index 924990e..f106c2d 100644
  /*****************************************************************************
   *           UpdateLayeredWindow (win32u.@)
   */
-@@ -2665,6 +2895,90 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
+@@ -2665,6 +2899,90 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
  
      TRACE( "window %p new_rects %s\n", hwnd, debugstr_window_rects( &new_rects ) );
  
@@ -416,7 +420,7 @@ index 924990e..f106c2d 100644
      surface = get_window_surface( hwnd, swp_flags, TRUE, &new_rects, &surface_rect );
      apply_window_pos( hwnd, 0, swp_flags, surface, &new_rects, NULL );
      if (!surface) return FALSE;
-@@ -2676,40 +2990,30 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
+@@ -2676,40 +2994,30 @@ BOOL WINAPI NtUserUpdateLayeredWindow( HWND hwnd, HDC hdc_dst, const POINT *pts_
      }
      else
      {

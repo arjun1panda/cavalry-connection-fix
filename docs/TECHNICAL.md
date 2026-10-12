@@ -3,8 +3,11 @@
 This is the "how it actually works" companion to the friendly `README.md`. If you just
 want to *use* the fix, you don't need anything in here.
 
-**Scope:** Cavalry-specific (Qt 6.6 `Qt663*` UI). This is not a general Wine fix for all
-apps and is not in a form WineHQ would merge as-is.
+**Scope:** Cavalry-specific. Windows are matched by Qt's `Qt<version>QWindowIcon` class
+(`Qt663QWindowIcon` in Qt 6.6 builds, `Qt692QWindowIcon` in Cavalry 2.8 / Qt 6.9), so a Qt
+bump doesn't need a patch change. `Qt<version>QWindowOwnDCIcon` is Qt's OpenGL top-level
+class and is deliberately not matched. This is not a general Wine fix for all apps and is
+not in a form WineHQ would merge as-is.
 
 Tested reference: Fedora, GNOME Wayland + XWayland, NVIDIA, Wine **11.13**, Cavalry Qt 6.6.
 
